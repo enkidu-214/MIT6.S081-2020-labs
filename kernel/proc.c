@@ -274,7 +274,9 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
-
+  //trace lab
+  np->tracecode = p->tracecode;
+  
   np->parent = p;
 
   // copy saved user registers.
@@ -692,4 +694,13 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+uint64 proccount(void){
+  uint64 count=0;
+  for(int i=0;i<NPROC;i++){
+    if(proc[i].state!=UNUSED)
+      count++;
+  }
+  return count;
 }

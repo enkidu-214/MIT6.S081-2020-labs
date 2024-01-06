@@ -95,3 +95,34 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// start trace process
+uint64
+sys_trace(void)
+{
+  int n;
+  //获得了传入的值
+  if(argint(0, &n) < 0)
+    return -1;
+  myproc()->tracecode = n;
+  return 0;
+}
+
+// start trace process
+uint64
+sys_sysinfo(void)
+{
+  uint64 sysinfo_addr; // user pointer to struct sysinfo
+  struct proc *p = myproc();
+  if(argaddr(0, &sysinfo_addr) < 0){
+    return -1;
+  }
+  uint64 fremem = freememcount();
+  uint64 freproc = proccount();
+  if(copyout(p->pagetable, sysinfo_addr, (char *)&fremem, sizeof(fremem)) < 0)
+    return -1;
+  if(copyout(p->pagetable, sysinfo_addr+sizeof(fremem), (char *)&freproc, sizeof(freproc)) < 0)
+    return -1;
+
+  return 0;
+}
