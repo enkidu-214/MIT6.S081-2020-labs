@@ -57,12 +57,13 @@ copyinstr_new(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   return -1;
 }
 
-void copyuser2kernel(pagetable_t user_pt,pagetable_t kernel_pt,int start,int size){
-  for(int i=start;i<size;i++){
+void copyuser2kernel(pagetable_t user_pt,pagetable_t kernel_pt,uint64 start,uint64 size){
+  start = PGROUNDUP(start);
+  for(uint64 i=start;i<size;i += PGSIZE){
     pte_t* pte_src = walk(user_pt,i,0);
     pte_t* pte_dst = walk(kernel_pt,i,1);
-    if(pte_src == 0) panic("copyuser2kernel: no src pte.\n");
-    if(pte_dst == 0) panic("copyuser2kernel: no dst pte.\n");
+    if(pte_src == 0) panic("copyuser2kernel: no src pte.");
+    if(pte_dst == 0) panic("copyuser2kernel: no dst pte.");
     uint64 pa = PTE2PA(*pte_src);
     //禁止usr访问
     uint flag = (PTE_FLAGS(*pte_src)) & (~PTE_U);

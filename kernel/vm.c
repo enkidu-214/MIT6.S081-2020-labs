@@ -121,7 +121,10 @@ kvmmap(uint64 va, uint64 pa, uint64 sz, int perm)
   if(mappages(kernel_pagetable, va, sz, pa, perm) != 0)
     panic("kvmmap");
 }
-
+void userkvmmap(pagetable_t kpagetable,uint64 va, uint64 pa, uint64 sz, int perm){
+  if(mappages(kpagetable, va, sz, pa, perm) != 0)
+    panic("userkvmmap");
+}
 // translate a kernel virtual address to
 // a physical address. only needed for
 // addresses on the stack.
@@ -480,38 +483,15 @@ void vmprint(pagetable_t pagetable,int depth){
 }
 
 pagetable_t userkvminit(){
-  pagetable_t user_kernel_table;
-
-  // An empty page table.
-  user_kernel_table = uvmcreate();
-  if(user_kernel_table == 0)
-    return 0;
-
-  // uart registers
-  userkvmmap(&user_kernel_table,UART0, UART0, PGSIZE, PTE_R | PTE_W);
-
-  // virtio mmio disk interface
-  userkvmmap(&user_kernel_table,VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
-
-  // CLINT
-  userkvmmap(&user_kernel_table,CLINT, CLINT, 0x10000, PTE_R | PTE_W);
-
-  // PLIC
-  userkvmmap(&user_kernel_table,PLIC, PLIC, 0x400000, PTE_R | PTE_W);
-
-  // map kernel text executable and read-only.
-  userkvmmap(&user_kernel_table,KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
-
-  // map kernel data and the physical RAM we'll make use of.
-  userkvmmap(&user_kernel_table,(uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
-
-  // map the trampoline for trap entry/exit to
-  // the highest virtual address in the kernel.
-  userkvmmap(&user_kernel_table,TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);  
-  return user_kernel_table;
+  pagetable_t kpagetable = (pagetable_t) kalloc();
+  memset(kpagetable, 0, PGSIZE);
+  userkvmmap(kpagetable, UART0, UART0, PGSIZE, PTE_R | PTE_W);
+  userkvmmap(kpagetable, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+  userkvmmap(kpagetable, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+  userkvmmap(kpagetable, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
+  userkvmmap(kpagetable, KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
+  userkvmmap(kpagetable, (uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
+  userkvmmap(kpagetable, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
+  return kpagetable;
 }
 
-void userkvmmap(pagetable_t* user_kpagetable,uint64 va, uint64 pa, uint64 sz, int perm){
-  if(mappages(*user_kpagetable, va, sz, pa, perm) != 0)
-    panic("kvmmap");
-}

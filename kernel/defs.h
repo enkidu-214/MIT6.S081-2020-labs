@@ -180,7 +180,7 @@ int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
 void            vmprint(pagetable_t pagetable,int depth);
 pagetable_t     userkvminit(void);
-void            userkvmmap(pagetable_t*,uint64, uint64, uint64, int);
+void            userkvmmap(pagetable_t,uint64, uint64, uint64, int);
 pte_t *         walk(pagetable_t, uint64, int);
 void            proc_freewalk(pagetable_t);
 
@@ -201,7 +201,7 @@ void            virtio_disk_intr(void);
 //vmcopyin.c
 int copyin_new(pagetable_t, char*, uint64, uint64 );
 int copyinstr_new(pagetable_t , char* , uint64 , uint64 );
-void copyuser2kernel(pagetable_t ,pagetable_t ,int ,int );
+void copyuser2kernel(pagetable_t ,pagetable_t ,uint64 ,uint64 );
 
 // stats.c
 void            statsinit(void);

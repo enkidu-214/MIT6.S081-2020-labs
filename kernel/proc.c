@@ -132,7 +132,7 @@ found:
   if(pa == 0)
     panic("kalloc");
   uint64 va = KSTACK((int) (p - proc));
-  userkvmmap(&p->kernel_table,va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+  userkvmmap(p->kernel_table,va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
   p->kstack = va;  
 
   // Set up new context to start executing at forkret,
@@ -166,7 +166,6 @@ freeproc(struct proc *p)
 
   if(p->kernel_table)
     proc_freewalk(p->kernel_table);
-
 
   p->pagetable = 0;
   p->kernel_table = 0;
@@ -273,11 +272,12 @@ growproc(int n)
 
   sz = p->sz;
   //这个之前没想到
-  if(PGROUNDUP(sz + n) >= PLIC) return -1;
   if(n > 0){
+    if(PGROUNDUP(sz + n) >= PLIC) return -1;
     if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
       return -1;
     }
+    copyuser2kernel(p->pagetable,p->kernel_table,sz - n, sz);
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
   }
@@ -321,13 +321,14 @@ fork(void)
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
 
+  copyuser2kernel(np->pagetable,np->kernel_table,0,np->sz);
+
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
 
   np->state = RUNNABLE;
 
-  copyuser2kernel(np->pagetable,np->kernel_table,0,np->sz);
 
   release(&np->lock);
 
