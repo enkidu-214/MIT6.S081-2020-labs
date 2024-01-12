@@ -178,6 +178,11 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
+void            vmprint(pagetable_t pagetable,int depth);
+pagetable_t     userkvminit(void);
+void            userkvmmap(pagetable_t*,uint64, uint64, uint64, int);
+pte_t *         walk(pagetable_t, uint64, int);
+void            proc_freewalk(pagetable_t);
 
 // plic.c
 void            plicinit(void);
@@ -193,7 +198,10 @@ void            virtio_disk_intr(void);
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
 
-
+//vmcopyin.c
+int copyin_new(pagetable_t, char*, uint64, uint64 );
+int copyinstr_new(pagetable_t , char* , uint64 , uint64 );
+void copyuser2kernel(pagetable_t ,pagetable_t ,int ,int );
 
 // stats.c
 void            statsinit(void);

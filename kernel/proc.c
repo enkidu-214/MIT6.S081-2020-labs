@@ -120,6 +120,20 @@ found:
     release(&p->lock);
     return 0;
   }
+  //for lab
+  p->kernel_table = userkvminit();
+    if(p->kernel_table == 0){
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+  //内核页都需要直接和物理地址映射，所以每次分配进程内核页的时候都要操作
+  char *pa = kalloc();
+  if(pa == 0)
+    panic("kalloc");
+  uint64 va = KSTACK((int) (p - proc));
+  userkvmmap(&p->kernel_table,va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+  p->kstack = va;  
 
   // Set up new context to start executing at forkret,
   // which returns to user space.
@@ -141,7 +155,21 @@ freeproc(struct proc *p)
   p->trapframe = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
+  
+  if(p->kstack) {
+    pte_t* pte = walk(p->kernel_table, p->kstack, 0);
+    if(pte == 0)
+      panic("freeproc: walk");
+    kfree((void*)PTE2PA(*pte));
+  }
+  p->kstack = 0;  
+
+  if(p->kernel_table)
+    proc_freewalk(p->kernel_table);
+
+
   p->pagetable = 0;
+  p->kernel_table = 0;
   p->sz = 0;
   p->pid = 0;
   p->parent = 0;
@@ -221,6 +249,8 @@ userinit(void)
   uvminit(p->pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
 
+  copyuser2kernel(p->pagetable,p->kernel_table,0,p->sz);
+
   // prepare for the very first "return" from kernel to user.
   p->trapframe->epc = 0;      // user program counter
   p->trapframe->sp = PGSIZE;  // user stack pointer
@@ -242,6 +272,8 @@ growproc(int n)
   struct proc *p = myproc();
 
   sz = p->sz;
+  //这个之前没想到
+  if(PGROUNDUP(sz + n) >= PLIC) return -1;
   if(n > 0){
     if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
       return -1;
@@ -294,6 +326,8 @@ fork(void)
   pid = np->pid;
 
   np->state = RUNNABLE;
+
+  copyuser2kernel(np->pagetable,np->kernel_table,0,np->sz);
 
   release(&np->lock);
 
@@ -460,6 +494,7 @@ scheduler(void)
   struct cpu *c = mycpu();
   
   c->proc = 0;
+  
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
@@ -473,8 +508,13 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
-        swtch(&c->context, &p->context);
 
+        w_satp(MAKE_SATP(p->kernel_table));
+        sfence_vma();
+
+        swtch(&c->context, &p->context);
+        //退出一个进程，此时用内核页表
+        kvminithart();
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
