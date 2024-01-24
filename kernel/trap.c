@@ -65,7 +65,28 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if((which_dev = devintr()) != 0){
+  }else if(r_scause() == 13 || r_scause() == 15){
+    //这里忘记判断假如虚拟地址低于栈地址该咋样
+    if(r_stval()>p->sz || r_stval()<PGROUNDDOWN(p->trapframe->sp)){
+      p->killed = 1;
+    }
+    else{
+      uint64 pagedown = PGROUNDDOWN(r_stval());
+      char *mem;
+      mem = kalloc();
+      if(mem == 0 || pagedown==0){
+        //认为此时内存不足，杀死进程
+        p->killed = 1;
+      }else{
+        memset(mem, 0, PGSIZE);
+        if(mappages(p->pagetable, pagedown, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+          kfree(mem);
+          p->killed = 1;
+        }   
+      }
+    }
+  }
+   else if((which_dev = devintr()) != 0){
     // ok
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
@@ -142,11 +163,11 @@ kerneltrap()
     panic("kerneltrap: not from supervisor mode");
   if(intr_get() != 0)
     panic("kerneltrap: interrupts enabled");
-
+  //既然kernel也会出错，那么kernel的问题kernel解决吧
   if((which_dev = devintr()) == 0){
-    printf("scause %p\n", scause);
-    printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
-    panic("kerneltrap");
+      printf("scause %p\n", scause);
+      printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
+      panic("kerneltrap");
   }
 
   // give up the CPU if this is a timer interrupt.
