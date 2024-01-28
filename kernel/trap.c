@@ -68,41 +68,13 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
   }
-  else if(r_scause()==0xf || r_scause() == 13){
-    if(r_stval() > MAXVA || r_stval() > p->sz || (r_stval() <= PGROUNDDOWN(p->trapframe->sp) && r_stval() >= PGROUNDDOWN(p->trapframe->sp) - PGSIZE)) {
+  else if(r_scause()==0xf){
+    if(cowcopy(p->pagetable, r_stval()) == 0)
+    {
       p->killed = 1;
     }
-    else{
-      char *mem;
-      uint64 va = PGROUNDDOWN(r_stval());
-      mem = kalloc();
-      if(mem == 0){
-        p->killed = 1;
-      }
-      else{
-        //这里需要原来的pte，因为不知道fork的是什么进程权限
-        pte_t* pte = walk(p->pagetable,va,0);
-        if((*pte & PTE_COW)==0 || (*pte & PTE_V)==0 || pte == 0){
-          p->killed = 1;
-        }
-        else{
-          uint64 pa = PTE2PA(*pte);
-          memmove(mem, (char*)pa, PGSIZE);
-          //-1or清除都有可能
-          kfree((char *)pa);
-          //获取原页的符号，并且重新置位写位和COW位
-          uint flags = PTE_FLAGS(*pte);
-          flags &= ~PTE_COW;
-          uvmunmap(p->pagetable,va,1,0);
-          if(mappages(p->pagetable, va, PGSIZE, (uint64)mem, flags|PTE_W) != 0){
-            panic("map error when fork");
-          }    
-        }
-      }
-    }
-
   }
-  else if(r_scause() == 12 ){
+  else if(r_scause() == 12 || r_scause() == 13){
     p->killed = 1;
   }
   else {

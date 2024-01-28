@@ -318,21 +318,19 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
+    
     //与或在不同情况下不同
-    *pte &= ~PTE_W;
-    *pte |= PTE_COW;
+    *pte = (*pte) & (~PTE_W);
+    *pte = (*pte) | (PTE_COW);
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    //if((mem = kalloc()) == 0)
-    //  goto err;
-    //memmove(mem, (char*)pa, PGSIZE);
     //同一个pa
     if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
       //panic("map error when fork");
       //kfree(mem);
       goto err;
     }
-    refincrease((uint64)pa);
+    refincrease(pa);
   }
   return 0;
 
@@ -361,36 +359,22 @@ int
 copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
   uint64 n, va0, pa0;
-  char* mem;
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
-    pte_t* pte = walk(pagetable,va0,0);
-    if (pte == 0) return -1;
-    pa0 = PTE2PA(*pte);
+    pa0 = walkaddr(pagetable, va0);
+
+    if(cowcheck(pagetable, va0) != 0)
+    {
+      pa0 = cowcopy(pagetable, va0);
+    }    
+
     if(pa0 == 0)
       return -1;
-    //假如当前地址为PTE_COW地址，那么说明是只读的，kalloc新的页面
-    if(*pte & PTE_COW){
-      mem = kalloc();
-      if(mem==0){
-        return -1;
-      }
-      memmove(mem, (char*)pa0, PGSIZE);
-      uint flags = PTE_FLAGS(*pte);
-      flags &= ~PTE_COW;
-      kfree((char*)pa0);
-      uvmunmap(pagetable,va0,1,0);
-      if(mappages(pagetable, va0, PGSIZE, (uint64)mem, flags|PTE_W) != 0){
-        panic("map error when copyout");
-      }
-    }
-    else{
-      mem=(char*)pa0;
-    }
+
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
-    memmove((void *)((uint64)mem + (dstva - va0)), src, n);
+    memmove((void *)((uint64)pa0 + (dstva - va0)), src, n);
 
     len -= n;
     src += n;

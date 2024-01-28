@@ -16,6 +16,7 @@ extern char end[]; // first address after kernel.
 //引用计数的记录数组
 int refcount[(PHYSTOP-KERNBASE) / PGSIZE];
 #define PAIDX(a) (((a) - KERNBASE) / PGSIZE)
+
 struct spinlock reflock;
 struct run {
   struct run *next;
@@ -31,6 +32,7 @@ kinit()
 {
   initlock(&kmem.lock, "kmem");
   //初始化引用计数
+  initlock(&reflock, "ref");
   memset(refcount,0,sizeof(refcount));
   freerange(end, (void*)PHYSTOP);
 }
@@ -85,13 +87,18 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+  if(r){
     kmem.freelist = r->next;
+  }
   release(&kmem.lock);
 
-  if(r)
+  if(r){
+    acquire(&reflock);
+    refcount[PAIDX((uint64)r)]=1;
+    release(&reflock); 
     memset((char*)r, 5, PGSIZE); // fill with junk
-  refcount[PAIDX((uint64)r)]=1;
+  }
+
   return (void*)r;
 }
 
