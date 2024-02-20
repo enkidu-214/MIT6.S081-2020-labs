@@ -16,7 +16,7 @@ struct entry {
 struct entry *table[NBUCKET];
 int keys[NKEYS];
 int nthread = 1;
-
+pthread_mutex_t lock[NBUCKET];            // declare a lock
 double
 now()
 {
@@ -25,6 +25,9 @@ now()
  return tv.tv_sec + tv.tv_usec / 1000000.0;
 }
 
+//无法同时插入的原因就在这里
+//假如当前有两个同样想插在entry头的线程
+//那么最后只有一个能真正成为头
 static void 
 insert(int key, int value, struct entry **p, struct entry *n)
 {
@@ -51,7 +54,9 @@ void put(int key, int value)
     e->value = value;
   } else {
     // the new is new.
+    pthread_mutex_lock(&lock[i]);       // acquire lock
     insert(key, value, &table[i], table[i]);
+    pthread_mutex_unlock(&lock[i]);     // release lock
   }
 }
 
@@ -110,6 +115,9 @@ main(int argc, char *argv[])
   nthread = atoi(argv[1]);
   tha = malloc(sizeof(pthread_t) * nthread);
   srandom(0);
+  for(int i=0;i<NBUCKET;i++){
+    pthread_mutex_init(&lock[i], NULL); // initialize the lock
+  }
   assert(NKEYS % nthread == 0);
   for (int i = 0; i < NKEYS; i++) {
     keys[i] = random();
